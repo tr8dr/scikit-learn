@@ -144,15 +144,19 @@ def _parallel_build_trees(tree, forest, X, y, sample_weight, tree_idx, n_trees,
     if verbose > 1:
         print("building tree %d of %d" % (tree_idx + 1, n_trees))
 
-    if forest.bootstrap:
+    if forest.bootstrap or not (forest.sampling_function is None):
         n_samples = X.shape[0]
         if sample_weight is None:
             curr_sample_weight = np.ones((n_samples,), dtype=np.float64)
         else:
             curr_sample_weight = sample_weight.copy()
 
-        indices = _generate_sample_indices(tree.random_state, n_samples,
-                                           n_samples_bootstrap)
+        if forest.sampling_function is None:
+            indices = _generate_sample_indices(tree.random_state, n_samples, n_samples_bootstrap)
+        else:
+            random_instance = check_random_state(tree.random_state)
+            indices = forest.sampling_function (random_instance, n_samples, n_samples_bootstrap)
+
         sample_counts = np.bincount(indices, minlength=n_samples)
         curr_sample_weight *= sample_counts
 
@@ -189,6 +193,7 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
                  oob_score=False,
                  n_jobs=None,
                  random_state=None,
+                 sampling_function=None,
                  verbose=0,
                  warm_start=False,
                  class_weight=None,
@@ -198,6 +203,7 @@ class BaseForest(MultiOutputMixin, BaseEnsemble, metaclass=ABCMeta):
             n_estimators=n_estimators,
             estimator_params=estimator_params)
 
+        self.sampling_function = sampling_function
         self.bootstrap = bootstrap
         self.oob_score = oob_score
         self.n_jobs = n_jobs
@@ -489,6 +495,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
                  oob_score=False,
                  n_jobs=None,
                  random_state=None,
+                 sampling_function=None,
                  verbose=0,
                  warm_start=False,
                  class_weight=None,
@@ -501,6 +508,7 @@ class ForestClassifier(ClassifierMixin, BaseForest, metaclass=ABCMeta):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=sampling_function,
             verbose=verbose,
             warm_start=warm_start,
             class_weight=class_weight,
@@ -744,6 +752,7 @@ class ForestRegressor(RegressorMixin, BaseForest, metaclass=ABCMeta):
                  oob_score=False,
                  n_jobs=None,
                  random_state=None,
+                 sampling_function=None,
                  verbose=0,
                  warm_start=False,
                  max_samples=None):
@@ -755,6 +764,7 @@ class ForestRegressor(RegressorMixin, BaseForest, metaclass=ABCMeta):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=sampling_function,
             verbose=verbose,
             warm_start=warm_start,
             max_samples=max_samples)
@@ -1015,6 +1025,15 @@ class RandomForestClassifier(ForestClassifier):
         (if ``max_features < n_features``).
         See :term:`Glossary <random_state>` for details.
 
+    sampling_function : function of (random_instance, n_rows, n_bootstrap), default=None
+        Defines a function to generate n_boostrap indices in [0:n_rows],
+        selecting the indices of feature vectors and labels used to generate
+        a given tree in the forest.  If there are K trees in the forest, this function
+        will be called K times.
+
+        Overriding this function allows the user to be selective in determining
+        which samples will used in generating each tree.
+
     verbose : int, default=0
         Controls the verbosity when fitting and predicting.
 
@@ -1165,6 +1184,7 @@ class RandomForestClassifier(ForestClassifier):
                  oob_score=False,
                  n_jobs=None,
                  random_state=None,
+                 sampling_function=None,
                  verbose=0,
                  warm_start=False,
                  class_weight=None,
@@ -1182,6 +1202,7 @@ class RandomForestClassifier(ForestClassifier):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=sampling_function,
             verbose=verbose,
             warm_start=warm_start,
             class_weight=class_weight,
@@ -1337,6 +1358,15 @@ class RandomForestRegressor(ForestRegressor):
         (if ``max_features < n_features``).
         See :term:`Glossary <random_state>` for details.
 
+    sampling_function : function of (random_instance, n_rows, n_bootstrap), default=None
+        Defines a function to generate n_boostrap indices in [0:n_rows],
+        selecting the indices of feature vectors and labels used to generate
+        a given tree in the forest.  If there are K trees in the forest, this function
+        will be called K times.
+
+        Overriding this function allows the user to be selective in determining
+        which samples will used in generating each tree.
+
     verbose : int, default=0
         Controls the verbosity when fitting and predicting.
 
@@ -1456,6 +1486,7 @@ class RandomForestRegressor(ForestRegressor):
                  oob_score=False,
                  n_jobs=None,
                  random_state=None,
+                 sampling_function=None,
                  verbose=0,
                  warm_start=False,
                  ccp_alpha=0.0,
@@ -1472,6 +1503,7 @@ class RandomForestRegressor(ForestRegressor):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=sampling_function,
             verbose=verbose,
             warm_start=warm_start,
             max_samples=max_samples)
@@ -1784,6 +1816,7 @@ class ExtraTreesClassifier(ForestClassifier):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=None,
             verbose=verbose,
             warm_start=warm_start,
             class_weight=class_weight,
@@ -2064,6 +2097,7 @@ class ExtraTreesRegressor(ForestRegressor):
             oob_score=oob_score,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=None,
             verbose=verbose,
             warm_start=warm_start,
             max_samples=max_samples)
@@ -2272,6 +2306,7 @@ class RandomTreesEmbedding(BaseForest):
             oob_score=False,
             n_jobs=n_jobs,
             random_state=random_state,
+            sampling_function=None,
             verbose=verbose,
             warm_start=warm_start,
             max_samples=None)
